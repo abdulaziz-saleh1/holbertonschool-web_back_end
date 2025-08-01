@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""This module provides a function that sums a mixed list of ints and floats."""
+"""This module provides a function that sums a mixed list
+of integers and floats and returns the total as a float.
+"""
 
 
 from typing import List, Union
