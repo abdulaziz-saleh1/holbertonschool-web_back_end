@@ -3,7 +3,6 @@
 Deletion-resilient hypermedia pagination
 """
 import csv
-import math
 from typing import List, Dict
 
 
@@ -25,10 +24,16 @@ class Server:
         return self.__dataset
 
     def indexed_dataset(self) -> Dict[int, List]:
-        """Dataset indexed by position, starting at 0."""
+        """Dataset indexed by sorting position, starting at 0.
+
+        IMPORTANT: per spec, only index the first 1000 rows.
+        """
         if self.__indexed_dataset is None:
             dataset = self.dataset()
-            self.__indexed_dataset = {i: dataset[i] for i in range(len(dataset))}
+            truncated_dataset = dataset[:1000]
+            self.__indexed_dataset = {
+                i: truncated_dataset[i] for i in range(len(truncated_dataset))
+            }
         return self.__indexed_dataset
 
     def get_hyper_index(self, index: int = None, page_size: int = 10) -> Dict:
@@ -36,31 +41,35 @@ class Server:
         Return a deletion-resilient page starting at `index`.
 
         Response keys:
-        - index: start index requested
-        - next_index: index to request for the next page
-        - page_size: number of items actually returned
-        - data: list of rows
+          - index: start index requested (after defaulting None->0)
+          - next_index: first index after the last returned item
+          - page_size: number of items actually returned
+          - data: list of rows
         """
+        # Default behavior: if index is None, start at 0
+        if index is None:
+            index = 0
+
         assert isinstance(index, int) and index >= 0
         assert isinstance(page_size, int) and page_size > 0
 
         indexed = self.indexed_dataset()
+        # Validate index within possible range of current indexed dataset
         max_index = max(indexed.keys()) if indexed else -1
-        # index must be within possible range (<= max existing index)
         assert index <= max_index
 
         data: List[List] = []
-        current = index
+        cursor = index
 
         # Collect up to page_size existing rows, skipping deleted indices
-        while len(data) < page_size and current <= max_index:
-            if current in indexed:
-                data.append(indexed[current])
-            current += 1
+        while len(data) < page_size and cursor <= max_index:
+            if cursor in indexed:
+                data.append(indexed[cursor])
+            cursor += 1
 
         return {
             "index": index,
             "data": data,
             "page_size": len(data),
-            "next_index": current,
+            "next_index": cursor,
         }
